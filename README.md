@@ -42,4 +42,11 @@ copilot_prompt.txt: Structured input for a Data Architect LLM, containing the DO
 
 # Configuration
 
-<img width="970" height="527" alt="image" src="https://github.com/user-attachments/assets/c6ef28f7-275d-40f1-b3e9-50ce6a4a4b35" />
+| Constant                   | Description                                                             | Default Value         |
+|---------------------------|-------------------------------------------------------------------------|-----------------------|
+| INPUT_DIR                 | Directory containing the CSV files.                                     | banking_data_files    |
+| DOT_OUTPUT_FILE           | File path for the Graphviz visualization output.                        | data_model.dot        |
+| PROMPT_OUTPUT_FILE        | File path for the LLM prompt text.                                      | copilot_prompt.txt    |
+| UNIQUENESS_THRESHOLD      | Minimum uniqueness ratio for PK candidate selection.                    | 0.95                  |
+| INCLUSION_THRESHOLD       | Minimum required coverage percentage for referential integrity.         | 0.99                  |
+| NAME_SIMILARITY_THRESHOLD | Minimum combined semantic score for a valid relationship.               | 0.60                  |
