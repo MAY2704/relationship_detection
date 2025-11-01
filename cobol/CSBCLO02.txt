@@ -1,0 +1,102 @@
+IDENTIFICATION DIVISION.
+       PROGRAM-ID.    CSBCLO02.
+       AUTHOR.        AI-GEN.
+       DATE-WRITTEN.  20251009.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-390.
+       OBJECT-COMPUTER. IBM-390.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT COLL-IN  ASSIGN TO UT-S-COLLIN.
+           SELECT LIEN-OUT ASSIGN TO UT-S-LNCHG.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  COLL-IN
+           RECORD CONTAINS 100 CHARACTERS
+           DATA RECORD IS COLL-TXN-REC.
+       01  COLL-TXN-REC.
+           05  CLID-TXN               PIC X(12).
+           05  NEW-VALU               PIC S9(15)V99 COMP-3.
+           05  LIEN-IND               PIC X(01).
+           05  FILLER                 PIC X(71).
+
+       FD  LIEN-OUT
+           RECORD CONTAINS 80 CHARACTERS
+           DATA RECORD IS LIEN-DETAIL.
+       01  LIEN-DETAIL.
+           05  LNID-OUT               PIC X(12).
+           05  LNTY-OUT               PIC X(05).
+           05  LNAM-OUT               PIC S9(13)V99 COMP-3.
+
+       WORKING-STORAGE SECTION.
+
+       01  COLL-C-COPY.
+           05  CLID-C                 PIC X(12).
+           05  CVAL-A                 PIC S9(15)V99 COMP-3.
+
+       01  LIEN-MSTR.
+           05  LIEN-CLID              PIC X(12).
+           05  LIEN-AMT               PIC S9(15)V99 COMP-3.
+
+       01  W-CONTROL-02.
+           05  W-EOF-CL               PIC X(01) VALUE 'N'.
+           05  W-TTL-LIEN-AMT         PIC S9(15)V99 COMP-3 VALUE ZERO.
+
+       PROCEDURE DIVISION.
+
+       0000-MAIN-COLLATERAL-SECTION SECTION.
+       0000-MAIN-COLL.
+           OPEN INPUT COLL-IN.
+           OPEN OUTPUT LIEN-OUT.
+           PERFORM 1000-READ-INITIAL.
+           PERFORM 2000-PROCESSING-LOOP SECTION UNTIL W-EOF-CL = 'Y'.
+           CLOSE COLL-IN, LIEN-OUT.
+           STOP RUN.
+
+       1000-READ-INITIAL.
+           READ COLL-IN AT END MOVE 'Y' TO W-EOF-CL END-READ.
+           IF W-EOF-CL = 'N' PERFORM 1100-DATA-SIM.
+
+       1100-DATA-SIM.
+           MOVE CLID-TXN TO CLID-C, LIEN-CLID.
+           MOVE 5000000V00 TO LIEN-AMT.
+
+       2000-PROCESSING-LOOP SECTION.
+       2000-PROCESS-COLLATERAL.
+           IF NEW-VALU > 0
+               MOVE NEW-VALU TO CVAL-A
+           END-IF.
+           MOVE ZERO TO W-TTL-LIEN-AMT.
+
+           PERFORM 2100-LIEN-ACCUMULATION.
+           PERFORM 2200-LTV-CALCULATION.
+
+       2100-LIEN-ACCUMULATION.
+           IF LIEN-IND = 'Y'
+              AND LIEN-CLID = CLID-C
+               ADD LIEN-AMT TO W-TTL-LIEN-AMT
+               MOVE CLID-C TO LNID-OUT
+               MOVE LIEN-AMT TO LNAM-OUT
+               WRITE LIEN-DETAIL FROM LIEN-DETAIL
+           END-IF.
+
+       2200-LTV-CALCULATION.
+      * Complex LTV Logic
+           COMPUTE CVAL-A = CVAL-A - W-TTL-LIEN-AMT.
+           IF CVAL-A > 0
+               IF W-TTL-LIEN-AMT > CVAL-A / 2
+                   DISPLAY 'HIGH LIEN EXPOSURE'
+               ELSE
+                   DISPLAY 'LOW LIEN EXPOSURE'
+               END-IF
+           ELSE
+               DISPLAY 'COLLATERAL VALUE EXHAUSTED'
+           END-IF.
+
+       3000-NEXT-READ-SECTION SECTION.
+       3000-NEXT-READ.
+           READ COLL-IN AT END MOVE 'Y' TO W-EOF-CL END-READ.
+           IF W-EOF-CL = 'N' PERFORM 1100-DATA-SIM.

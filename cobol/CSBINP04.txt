@@ -1,0 +1,106 @@
+IDENTIFICATION DIVISION.
+       PROGRAM-ID.    CSBINP04.
+       AUTHOR.        AI-GEN.
+       DATE-WRITTEN.  20251009.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-390.
+       OBJECT-COMPUTER. IBM-390.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT INS-IN ASSIGN TO UT-S-INSIN.
+           SELECT INV-RPT ASSIGN TO UT-S-INVRPT.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  INS-IN
+           RECORD CONTAINS 70 CHARACTERS
+           DATA RECORD IS INS-TXN-REC.
+       01  INS-TXN-REC.
+           05  PIDX-TXN               PIC X(18).
+           05  AHID-TXN               PIC X(10).
+           05  EDAT-TXN               PIC 9(08).
+           05  CLID-TXN-LNK           PIC X(12).
+
+       FD  INV-RPT
+           RECORD CONTAINS 133 CHARACTERS
+           DATA RECORD IS INV-LINE.
+       01  INV-LINE                   PIC X(133).
+
+       WORKING-STORAGE SECTION.
+
+       01  INSP-I-COPY.
+           05  PIDX-I                 PIC X(18).
+           05  AHID-I                 PIC X(10).
+           05  ATYP-I                 PIC X(03).
+           05  EDAT-I                 PIC 9(08).
+
+       01  COLL-C-COPY.
+           05  CLID-C                 PIC X(12).
+           05  IPOL-LNK               PIC X(18).
+
+       01  W-CONTROL-04.
+           05  W-EOF-INS              PIC X(01) VALUE 'N'.
+           05  W-DATE-TODAY           PIC 9(08) VALUE 20251009.
+
+       PROCEDURE DIVISION.
+
+       0000-MAIN-INSURANCE-SECTION SECTION.
+       0000-MAIN-INS.
+           OPEN INPUT INS-IN.
+           OPEN OUTPUT INV-RPT.
+           PERFORM 1000-READ-INITIAL.
+           PERFORM 2000-PROCESSING-LOOP SECTION UNTIL W-EOF-INS = 'Y'.
+           CLOSE INS-IN, INV-RPT.
+           STOP RUN.
+
+       1000-READ-INITIAL.
+           READ INS-IN AT END MOVE 'Y' TO W-EOF-INS END-READ.
+           IF W-EOF-INS = 'N' PERFORM 1100-DATA-SIM.
+
+       1100-DATA-SIM.
+           MOVE PIDX-TXN TO PIDX-I.
+           MOVE AHID-TXN TO AHID-I.
+           MOVE EDAT-TXN TO EDAT-I.
+           MOVE CLID-TXN-LNK TO CLID-C.
+           MOVE 'PPR' TO ATYP-I.
+
+       2000-PROCESSING-LOOP SECTION.
+       2000-PROCESS-POLICY.
+           PERFORM 2100-COLLATERAL-LINK.
+           PERFORM 2200-EXPIRY-VALIDATION.
+
+       2100-COLLATERAL-LINK.
+           IF ATYP-I = 'PPR'
+               IF CLID-TXN-LNK NOT = SPACES
+                  AND CLID-C = CLID-TXN-LNK
+                   MOVE PIDX-I TO IPOL-LNK
+                   DISPLAY 'LNK: COLLATERAL UPDATED'
+               ELSE
+                   DISPLAY 'LNK: COLLATERAL LINK ERROR'
+               END-IF
+           END-IF.
+
+       2200-EXPIRY-VALIDATION.
+      * Complex nested condition for policy status
+           IF EDAT-I < W-DATE-TODAY
+               IF ATYP-I = 'LFE'
+                   DISPLAY 'LFE POLICY EXPIRED'
+                   PERFORM 2210-REPORT-INVALID
+               ELSE
+                   IF ATYP-I = 'PPR'
+                       DISPLAY 'PPR POLICY EXPIRED'
+                       PERFORM 2210-REPORT-INVALID
+                   END-IF
+               END-IF
+           END-IF.
+
+       2210-REPORT-INVALID.
+           STRING 'INVALID: POLICY ' PIDX-I ' CUST ' AHID-I DELIMITED BY SIZE INTO INV-LINE.
+           WRITE INV-LINE FROM INV-LINE.
+
+       3000-NEXT-READ-SECTION SECTION.
+       3000-NEXT-READ.
+           READ INS-IN AT END MOVE 'Y' TO W-EOF-INS END-READ.
+           IF W-EOF-INS = 'N' PERFORM 1100-DATA-SIM.

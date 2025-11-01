@@ -1,0 +1,106 @@
+IDENTIFICATION DIVISION.
+       PROGRAM-ID.    CSBREL03.
+       AUTHOR.        AI-GEN.
+       DATE-WRITTEN.  20251009.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-390.
+       OBJECT-COMPUTER. IBM-390.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT REL-IN ASSIGN TO UT-S-RELIN.
+           SELECT CMPL-L ASSIGN TO UT-S-CMPLOG.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  REL-IN
+           RECORD CONTAINS 60 CHARACTERS
+           DATA RECORD IS REL-TXN-REC.
+       01  REL-TXN-REC.
+           05  MAIN-TXN               PIC X(10).
+           05  RELT-TXN               PIC X(10).
+           05  TYP-TXN                PIC X(04).
+           05  EXP-AMT                PIC S9(13)V99 COMP-3.
+
+       FD  CMPL-L
+           RECORD CONTAINS 133 CHARACTERS
+           DATA RECORD IS CMPL-LINE.
+       01  CMPL-LINE                  PIC X(133).
+
+       WORKING-STORAGE SECTION.
+
+       01  CMST-P-COPY.
+           05  CMID-P                 PIC X(10).
+           05  CTYP-P                 PIC X(01).
+           05  RSKR-P                 PIC 9(03).
+           05  IFLG-P                 PIC X(01).
+
+       01  CREL-P-COPY.
+           05  MAIN-ID                PIC X(10).
+           05  RELP-TYP               PIC X(04).
+
+       01  W-CONTROL-03.
+           05  W-EOF-REL              PIC X(01) VALUE 'N'.
+           05  W-MAX-EXP-LIMIT        PIC S9(13)V99 COMP-3 VALUE 100000000V00.
+           05  W-EXPOSURE-SUM         PIC S9(15)V99 COMP-3 VALUE ZERO.
+
+       PROCEDURE DIVISION.
+
+       0000-MAIN-RELATIONSHIP-SECTION SECTION.
+       0000-MAIN-REL.
+           OPEN INPUT REL-IN.
+           OPEN OUTPUT CMPL-L.
+           PERFORM 1000-READ-INITIAL.
+           PERFORM 2000-PROCESSING-LOOP SECTION UNTIL W-EOF-REL = 'Y'.
+           CLOSE REL-IN, CMPL-L.
+           STOP RUN.
+
+       1000-READ-INITIAL.
+           READ REL-IN AT END MOVE 'Y' TO W-EOF-REL END-READ.
+           IF W-EOF-REL = 'N' PERFORM 1100-DATA-SIM.
+
+       1100-DATA-SIM.
+           MOVE MAIN-TXN TO CMID-P, MAIN-ID.
+           MOVE TYP-TXN TO RELP-TYP.
+           MOVE 'P' TO CTYP-P.
+
+       2000-PROCESSING-LOOP SECTION.
+       2000-PROCESS-RELATIONSHIP.
+           PERFORM 2100-EXPOSURE-CHECK.
+           PERFORM 2200-COMPLIANCE-CHECK.
+
+       2100-EXPOSURE-CHECK.
+           MOVE ZERO TO W-EXPOSURE-SUM.
+           IF RELP-TYP = 'SPSE' OR RELP-TYP = 'PRNT'
+              AND MAIN-ID = CMID-P
+               ADD EXP-AMT TO W-EXPOSURE-SUM
+               IF W-EXPOSURE-SUM > W-MAX-EXP-LIMIT
+                   IF RSKR-P < 090
+                       MOVE 095 TO RSKR-P
+                       PERFORM 2110-LOG-VIOLATION
+                   END-IF
+               END-IF
+           END-IF.
+
+       2110-LOG-VIOLATION.
+           STRING 'VIOL: CUST: ' MAIN-TXN ' EXCEEDS LIMIT. RISK ADJ.'
+                  DELIMITED BY SIZE INTO CMPL-LINE.
+           WRITE CMPL-LINE FROM CMPL-LINE.
+
+       2200-COMPLIANCE-CHECK.
+      * Complex nested condition: Commercial and High Risk check
+           IF CTYP-P = 'C'
+              AND RSKR-P > 085
+               IF IFLG-P = 'N'
+                   MOVE 'Y' TO IFLG-P
+                   STRING 'COMPL: CUST: ' MAIN-TXN ' INSURANCE MANDATED.'
+                          DELIMITED BY SIZE INTO CMPL-LINE
+                   WRITE CMPL-LINE FROM CMPL-LINE
+               END-IF
+           END-IF.
+
+       3000-NEXT-READ-SECTION SECTION.
+       3000-NEXT-READ.
+           READ REL-IN AT END MOVE 'Y' TO W-EOF-REL END-READ.
+           IF W-EOF-REL = 'N' PERFORM 1100-DATA-SIM.

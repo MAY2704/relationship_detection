@@ -1,0 +1,140 @@
+IDENTIFICATION DIVISION.
+       PROGRAM-ID.    CSBTRN01.
+       AUTHOR.        AI-GEN.
+       DATE-WRITTEN.  20251009.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-390.
+       OBJECT-COMPUTER. IBM-390.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT BANK-TXN-IN ASSIGN TO UT-S-TXNIN.
+           SELECT REPORT-OUT  ASSIGN TO UT-S-PRTRPT.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  BANK-TXN-IN
+           RECORD CONTAINS 150 CHARACTERS
+           LABEL RECORDS ARE STANDARD
+           DATA RECORD IS TXN-RECORD.
+       01  TXN-RECORD.
+           05  TXN-CUSTOMER-ID        PIC X(10).
+           05  TXN-AGREEMENT-ID       PIC X(15).
+           05  TXN-COLLATERAL-REF     PIC X(12).
+           05  TXN-RELATED-ID         PIC X(10).
+           05  TXN-AMOUNT             PIC S9(15)V99 COMP-3.
+           05  FILLER                 PIC X(94).
+
+       FD  REPORT-OUT
+           RECORD CONTAINS 133 CHARACTERS
+           LABEL RECORDS ARE OMITTED
+           DATA RECORD IS REPORT-LINE.
+       01  REPORT-LINE                PIC X(133).
+
+       WORKING-STORAGE SECTION.
+
+       01  T01-CORE-DATA-STORE.
+           05  CMST-P.
+               10  CMID-P                 PIC X(10).
+               10  CTYP-P                 PIC X(01).
+               10  RSKR-P                 PIC 9(03).
+               10  IFLG-P                 PIC X(01).
+               10  CSTT-P                 PIC X(02).
+
+           05  AGMT-A.
+               10  AGID-A                 PIC X(15).
+               10  ACID-A                 PIC X(10).
+               10  ATYP-A                 PIC X(03).
+               10  ASTS-A                 PIC X(01).
+               10  CLLT-REF               PIC X(12).
+
+           05  COLL-C.
+               10  CLID-C                 PIC X(12).
+               10  CVAL-A                 PIC S9(15)V99 COMP-3.
+               10  IPOL-LNK               PIC X(18).
+
+       01  W99-PROGRAM-CONTROL.
+           05  W-VIOL-IND               PIC X(01) VALUE 'N'.
+               88  VIOLATION-FOUND      VALUE 'Y'.
+           05  W-EOF-IND                PIC X(01) VALUE 'N'.
+               88  TXNIN-EOF            VALUE 'Y'.
+
+       PROCEDURE DIVISION.
+
+       0000-MAIN-CONTROL-SECTION SECTION.
+       0000-MAIN-LINE.
+           PERFORM 1000-IO-SETUP.
+           PERFORM 2000-TXN-READ-SECTION.
+           PERFORM 3000-TRANSACTION-LOOP SECTION UNTIL TXNIN-EOF.
+           PERFORM 9000-FINAL-TERMINATION.
+
+       1000-IO-SETUP.
+           OPEN INPUT BANK-TXN-IN.
+           OPEN OUTPUT REPORT-OUT.
+
+       2000-TXN-READ-SECTION SECTION.
+       2000-FIRST-READ.
+           READ BANK-TXN-IN
+               AT END SET TXNIN-EOF TO TRUE
+           END-READ.
+           IF NOT TXNIN-EOF
+               PERFORM 2100-DB-SIMULATION-MAP
+           END-IF.
+
+       2100-DB-SIMULATION-MAP.
+           MOVE TXN-CUSTOMER-ID   TO CMID-P.
+           MOVE 085               TO RSKR-P.
+           MOVE TXN-AGREEMENT-ID  TO AGID-A.
+           MOVE 'LOA'             TO ATYP-A.
+           MOVE TXN-COLLATERAL-REF TO CLLT-REF.
+           MOVE TXN-COLLATERAL-REF TO CLID-C.
+           MOVE TXN-AMOUNT        TO CVAL-A.
+           MOVE 'POL-PROP-999000' TO IPOL-LNK.
+
+       3000-TRANSACTION-LOOP SECTION.
+       3000-PROCESS-TXN.
+           PERFORM 3100-RULE-SET-ONE.
+           PERFORM 3200-RULE-SET-TWO.
+           PERFORM 4000-READ-NEXT-TXN.
+
+       3100-RULE-SET-ONE.
+       3100-COLLATERAL-CHECK.
+           IF ATYP-A = 'LOA'
+              AND CLLT-REF NOT = SPACES
+              AND CLLT-REF = CLID-C
+               DISPLAY 'R1: LOAN OK'
+           ELSE
+               SET VIOLATION-FOUND TO TRUE
+               DISPLAY 'R1: LOAN FAILURE'
+           END-IF.
+
+       3200-RULE-SET-TWO.
+       3200-INSURANCE-CHECK.
+           IF CVAL-A > 100000000V00
+              IF IPOL-LNK NOT = SPACES
+                 IF IPOL-LNK = 'POL-PROP-999000'
+                    DISPLAY 'R2: INSURED OK'
+                 ELSE
+                    SET VIOLATION-FOUND TO TRUE
+                    DISPLAY 'R2: INS REF MISMATCH'
+                 END-IF
+              ELSE
+                 SET VIOLATION-FOUND TO TRUE
+                 DISPLAY 'R2: MISSING INS'
+              END-IF
+           END-IF.
+
+       4000-READ-NEXT-TXN.
+           READ BANK-TXN-IN
+               AT END SET TXNIN-EOF TO TRUE
+           END-READ.
+           IF NOT TXNIN-EOF
+               PERFORM 2100-DB-SIMULATION-MAP
+           END-IF.
+
+       9000-FINAL-TERMINATION SECTION.
+       9000-TERMINATE.
+           CLOSE BANK-TXN-IN.
+           CLOSE REPORT-OUT.
+           STOP RUN.
